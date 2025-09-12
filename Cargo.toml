@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rumqttc = { version = "0.25.0", features = ["websocket"] }
+rumqttc = { version = "0.24.0", features = ["websocket"] }
 tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
 anyhow = "1.0.99"
 dashmap = "6.1.0"
