@@ -1,10 +1,10 @@
 [package]
-name = "untitled"
+name = "olarm_mqtt_bridge"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-rumqttc = { version = "0.24.0", features = ["websocket"] }
+rumqttc = { version = "0.25.0", features = ["websocket"] }
 tokio = { version = "1.47.1", features = ["rt-multi-thread"] }
 anyhow = "1.0.99"
 dashmap = "6.1.0"
@@ -17,4 +17,3 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 tracing-appender = "0.2"
 toml = "0.9.5"
-flume = "0.11.1"

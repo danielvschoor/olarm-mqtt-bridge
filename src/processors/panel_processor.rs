@@ -34,15 +34,15 @@ impl<T: OlarmApiTrait + Clone + Send + Sync> PanelProcessor<T> {
             }
             if olarm_state.areas.len() > area_num {
                 let area_state = match olarm_state.areas[area_num].as_str() {
-                    "notready" => Some(AlarmState::Disarmed.to_serde_value()),
-                    "countdown" => Some(AlarmState::Arming.to_serde_value()),
-                    "sleep" => Some(AlarmState::ArmedNight.to_serde_value()),
-                    "stay" => Some(AlarmState::ArmedHome.to_serde_value()),
-                    "arm" => Some(AlarmState::ArmedAway.to_serde_value()),
-                    "alarm" => Some(AlarmState::Triggered.to_serde_value()),
-                    "fire" => Some(AlarmState::Triggered.to_serde_value()),
-                    "emergency" => Some(AlarmState::Triggered.to_serde_value()),
-                    "disarm" => Some(AlarmState::Disarmed.to_serde_value()),
+                    "notready" => Some(AlarmState::Disarmed.as_serde_value()),
+                    "countdown" => Some(AlarmState::Arming.as_serde_value()),
+                    "sleep" => Some(AlarmState::ArmedNight.as_serde_value()),
+                    "stay" => Some(AlarmState::ArmedHome.as_serde_value()),
+                    "arm" => Some(AlarmState::ArmedAway.as_serde_value()),
+                    "alarm" => Some(AlarmState::Triggered.as_serde_value()),
+                    "fire" => Some(AlarmState::Triggered.as_serde_value()),
+                    "emergency" => Some(AlarmState::Triggered.as_serde_value()),
+                    "disarm" => Some(AlarmState::Disarmed.as_serde_value()),
                     _ => None,
                 };
                 panel_data.push(AreaObject {
@@ -100,14 +100,14 @@ impl<T:OlarmApiTrait + Sync + Send + Clone> MqttDeviceResponseProcessor for Pane
                     json_attributes_topic: Some(json_attributes_topic.clone()),
                     availability: Some(vec![
                         Availability{
-                            payload_available: Some(AvailabilityState::Online.to_serde_value()),
-                            payload_not_available: Some(AvailabilityState::Offline.to_serde_value()),
+                            payload_available: Some(AvailabilityState::Online.as_serde_value()),
+                            payload_not_available: Some(AvailabilityState::Offline.as_serde_value()),
                             topic: global_availability_topic.to_string(),
                             value_template: None,
                         },
                         Availability{
-                            payload_available: Some(AvailabilityState::Online.to_serde_value()),
-                            payload_not_available: Some(AvailabilityState::Offline.to_serde_value()),
+                            payload_available: Some(AvailabilityState::Online.as_serde_value()),
+                            payload_not_available: Some(AvailabilityState::Offline.as_serde_value()),
                             topic: device_availability_topic.to_string(),
                             value_template: None,
                         }
@@ -136,7 +136,7 @@ impl<T:OlarmApiTrait + Sync + Send + Clone> MqttDeviceResponseProcessor for Pane
                     .await?;
             }
 
-            self.ha_client.publish(&device_availability_topic, QoS::AtLeastOnce, true, AvailabilityState::Online.to_serde_value()).await?;
+            self.ha_client.publish(&device_availability_topic, QoS::AtLeastOnce, true, AvailabilityState::Online.as_serde_value()).await?;
 
             if let Ok(device_actions) = self.olarm_client.get_actions(&device.id).await {
                 let mut attributes: HashMap<String, String> = HashMap::new();

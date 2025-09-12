@@ -6,11 +6,11 @@ pub struct MqttWifiResponse {
     pub status: String,
     #[serde(rename = "type")]
     pub r#type: String,
-    pub data: Data,
+    pub data: WifiData,
 }
 
 #[derive(Serialize, Deserialize)]
-struct Data {
+pub struct WifiData {
     #[serde(rename = "wifiStatus")]
     pub wifi_status: String,
     #[serde(rename = "wifiConnected")]

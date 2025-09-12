@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::join;
 use tokio::sync::RwLock;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 use crate::home_assistant::availability::{Availability, AvailabilityState};
 use crate::home_assistant::models::requests::zone_bypass::ZoneBypassRequest;
 
@@ -128,14 +128,14 @@ impl ZonesProcessor {
                 json_attributes_topic: Some(json_attributes_topic.clone()),
                 availability: Some(vec![
                     Availability{
-                        payload_available: Some(AvailabilityState::Online.to_serde_value()),
-                        payload_not_available: Some(AvailabilityState::Offline.to_serde_value()),
+                        payload_available: Some(AvailabilityState::Online.as_serde_value()),
+                        payload_not_available: Some(AvailabilityState::Offline.as_serde_value()),
                         topic: global_availability_topic.to_string(),
                         value_template: None,
                     },
                     Availability{
-                        payload_available: Some(AvailabilityState::Online.to_serde_value()),
-                        payload_not_available: Some(AvailabilityState::Offline.to_serde_value()),
+                        payload_available: Some(AvailabilityState::Online.as_serde_value()),
+                        payload_not_available: Some(AvailabilityState::Offline.as_serde_value()),
                         topic: device_availability_topic.to_string(),
                         value_template: None,
                     }
@@ -159,7 +159,7 @@ impl ZonesProcessor {
                 false,
                 serde_json::to_string(&zone.attributes)?,
             ),
-            self.ha_client.publish(&device_availability_topic, QoS::AtLeastOnce, true, AvailabilityState::Online.to_serde_value())
+            self.ha_client.publish(&device_availability_topic, QoS::AtLeastOnce, true, AvailabilityState::Online.as_serde_value())
         ) {
             (Err(e), _, _) | (_, Err(e),_) | (_, _,Err(e)) => {
                 error!("Error publishing to {}: {:?}", state_topic, e);
@@ -215,20 +215,20 @@ impl ZonesProcessor {
                 command_topic: command_topic.clone(),
                 availability: Some(vec![
                     Availability{
-                        payload_available: Some(AvailabilityState::Online.to_serde_value()),
-                        payload_not_available: Some(AvailabilityState::Offline.to_serde_value()),
+                        payload_available: Some(AvailabilityState::Online.as_serde_value()),
+                        payload_not_available: Some(AvailabilityState::Offline.as_serde_value()),
                         topic: global_availability_topic.to_string(),
                         value_template: None,
                     },
                     Availability{
-                        payload_available: Some(AvailabilityState::Online.to_serde_value()),
-                        payload_not_available: Some(AvailabilityState::Offline.to_serde_value()),
+                        payload_available: Some(AvailabilityState::Online.as_serde_value()),
+                        payload_not_available: Some(AvailabilityState::Offline.as_serde_value()),
                         topic: device_availability_topic.to_string(),
                         value_template: None,
                     }
                 ]),
                 availability_mode: None, //defaults to "latest"
-                optimistic: None,
+                optimistic: Some(true),
             };
             let discovery_payload = serde_json::to_string(&discovery_object)?;
             trace!("{}", discovery_payload);

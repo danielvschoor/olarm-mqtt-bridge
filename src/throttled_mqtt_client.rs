@@ -3,7 +3,6 @@ use rumqttc::{AsyncClient, QoS};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tokio::sync::watch;
 
 use tokio::sync::oneshot;
 /// A wrapper around `AsyncClient` with throttling and response tracking.
@@ -64,6 +63,7 @@ impl MqttThrottledClient {
     pub async fn subscribe<S: Into<String>>(&self, topic: S, qos: QoS) -> Result<(), ClientError> {
         self.mqtt_client.subscribe(topic, qos).await
     }
+    #[allow(dead_code)]
     pub async fn publish<S, V>(
         &self,
         topic: S,

@@ -7,7 +7,6 @@ use crate::processors::ProcessorState;
 use rumqttc::QoS;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::info;
 use crate::throttled_mqtt_client::MqttThrottledClient;
 
 #[derive(Clone)]

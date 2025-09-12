@@ -5,7 +5,7 @@ pub mod olarm_api;
 mod processors;
 mod throttled_mqtt_client;
 
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, trace, warn};
 use tracing_appender::rolling;
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt};
 
@@ -313,125 +313,114 @@ where
     let local_client = client.clone();
     let local_client2 = client.clone();
     let local_ha_client = ha_client.clone();
-    join!(
-        tokio::spawn(async move {
-            let mut prev_message_hash: Option<u64> = None; // Store the hash of the previous message
+    // Run both loops as futures and short-circuit on the first error
+    let reader = async move {
+        let mut prev_message_hash: Option<u64> = None; // Store the hash of the previous message
+        loop {
+            match event_loop.poll().await {
+                Ok(Event::Incoming(Packet::Publish(p))) => {
+                    let payload_str = String::from_utf8_lossy(&p.payload);
+                    let mut hasher = DefaultHasher::new();
+                    payload_str.hash(&mut hasher);
+                    let current_hash = hasher.finish();
+                    // Check if the hash matches the previous payload's hash
+                    if let Some(prev_hash) = prev_message_hash && prev_hash == current_hash {
 
-            loop {
-                match event_loop.poll().await {
-                    Ok(Event::Incoming(Packet::Publish(p))) => {
-                        let payload_str = String::from_utf8_lossy(&p.payload);
-                        let mut hasher = DefaultHasher::new();
-                        payload_str.hash(&mut hasher);
-                        let current_hash = hasher.finish();
-                        // Check if the hash matches the previous payload's hash
-                        if let Some(prev_hash) = prev_message_hash {
-                            if prev_hash == current_hash {
-                                continue; // Skip processing duplicate payload
+                            continue; // Skip processing duplicate payload
+
+                    }
+                    prev_message_hash = Some(current_hash);
+
+                    if let Ok(payload) = serde_json::from_str::<MqttDeviceResponse>(&payload_str) {
+                        local_client.notify_response().await;
+                        debug!("{:?}", &payload);
+
+                        // Process zones
+                        let local_processor_state = processor_state.clone();
+                        let local_zones_processor = zone_processor.clone();
+                        let payload_for_zones = payload.clone();
+                        let zones_handle = tokio::spawn(async move {
+                            if let Err(e) = local_zones_processor
+                                .handle(payload_for_zones, local_processor_state)
+                                .await
+                            {
+                                error!("Error occurred while processing zone data: {:?}", e);
                             }
-                        }
-                        prev_message_hash = Some(current_hash);
+                        });
+                        // Process panels
+                        let local_processor_state = processor_state.clone();
+                        let panel_processor = PanelProcessor {
+                            ha_client: ha_client.clone(),
+                            olarm_client: olarm_client.clone(),
+                        };
+                        let payload_for_panel = payload.clone();
 
-                        if let Ok(payload) =
-                            serde_json::from_str::<MqttDeviceResponse>(&payload_str)
-                        {
-                            local_client.notify_response().await;
-                            debug!("{:?}", &payload);
+                        let panel_handle = tokio::spawn(async move {
+                            if let Err(e) = panel_processor
+                                .handle(payload_for_panel, local_processor_state)
+                                .await
+                            {
+                                error!("Error occurred while processing panel data: {:?}", e);
+                            }
+                        });
 
-                            // Process zones
-                            let local_processor_state = processor_state.clone();
-                            let local_zones_processor = zone_processor.clone();
-                            let payload_for_zones = payload.clone();
-                            let zones_handle = tokio::spawn(async move {
-                                if let Err(e) = local_zones_processor
-                                    .handle(payload_for_zones, local_processor_state)
-                                    .await
-                                {
-                                    error!("Error occurred while processing zone data: {:?}", e);
-                                }
-                            });
-                            // Process panels
-                            let local_processor_state = processor_state.clone();
-                            let panel_processor = PanelProcessor {
-                                ha_client: ha_client.clone(),
-                                olarm_client: olarm_client.clone(),
-                            };
-                            let payload_for_panel = payload.clone();
-
-                            let panel_handle = tokio::spawn(async move {
-                                if let Err(e) = panel_processor
-                                    .handle(payload_for_panel, local_processor_state)
-                                    .await
-                                {
-                                    error!("Error occurred while processing panel data: {:?}", e);
-                                }
-                            });
-
-                            let _ = join!(zones_handle, panel_handle);
-                        } else if let Ok(_) =
-                            serde_json::from_str::<MqttWifiResponse>(&payload_str)
-                        {
-
-                        }
-                        else{
-                            error!(
-                                "Unable to deserialize response. Body was: \"{}\"",
-                                &payload_str
-                            )
-                        }
-                    }
-                    Err(e) => {
-                        error!("{:?}", e);
-                        debug!("Resubscribing to {}", &device_state_topic);
-                        client
-                            .subscribe(&device_state_topic, QoS::AtLeastOnce)
-                            .await
-                            .unwrap();
-                        // Something broke. Resubscribe to all topics
-                    }
-                    e => {
-                        trace!("{:?}", e)
-                    }
-                }
-            }
-        }),
-        tokio::spawn(async move {
-            loop {
-                let _ = status_tick.tick().await;
-                match join!(
-                    local_ha_client.publish(
-                        &ha_availability_topic,
-                        QoS::AtLeastOnce,
-                        true,
-                        "online"
-                    ),
-                    local_client2.publish_and_wait(
-                        &status_topic,
-                        QoS::AtLeastOnce,
-                        false,
-                        serde_json::to_string(&MqttRequest::get()).unwrap()
-                    )
-                ) {
-                    (Err(e), _) => {
+                        let _ = join!(zones_handle, panel_handle);
+                    } else if serde_json::from_str::<MqttWifiResponse>(&payload_str).is_ok() {
+                        // wifi status message, intentionally ignored
+                    } else {
                         error!(
-                            "Error occurred while publishing to {}: {:?}",
-                            &ha_availability_topic, e
-                        );
+                            "Unable to deserialize response. Body was: \"{}\"",
+                            &payload_str
+                        )
                     }
-                    (_, Err(e)) =>{
-                         error!(
-                            "Error occurred while publishing to {}: {:?}",
-                            &status_topic, e
-                        );
-                    }
-                    _ => {}
+                }
+                Err(e) => {
+                    // Bubble up to trigger restart
+                    error!("MQTT event loop error: {:?}", e);
+                    return Err::<(), anyhow::Error>(anyhow::Error::from(e));
+                }
+                e => {
+                    trace!("{:?}", e)
                 }
             }
-        })
-    );
-    //todo: error handling
-    Ok(())
-}
+        }
+    };
+
+    let ticker = async move {
+        loop {
+            let _ = status_tick.tick().await;
+            // If either publish fails, return the error to trigger restart
+            if let Err(e) = local_ha_client
+                .publish(&ha_availability_topic, QoS::AtLeastOnce, true, "online")
+                .await
+            {
+                error!(
+                    "Error occurred while publishing to {}: {:?}",
+                    &ha_availability_topic, e
+                );
+                return Err::<(), anyhow::Error>(anyhow::Error::from(e));
+            }
+            if let Err(e) = local_client2
+                .publish_and_wait(
+                    &status_topic,
+                    QoS::AtLeastOnce,
+                    false,
+                    serde_json::to_string(&MqttRequest::get()).unwrap(),
+                )
+                .await
+            {
+                error!(
+                    "Error occurred while publishing to {}: {:?}",
+                    &status_topic, e
+                );
+                return Err(e);
+            }
+        }
+    };
+
+    // If either future returns Err, this returns Err immediately.
+    tokio::try_join!(reader, ticker).map(|_: (_, _)| ())
+ }
 #[derive(Debug, Clone)]
 pub struct ZoneObject {
     pub name: String,

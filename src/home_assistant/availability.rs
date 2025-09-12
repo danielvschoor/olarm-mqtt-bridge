@@ -63,8 +63,8 @@ pub enum AvailabilityState {
 }
 
 impl AvailabilityState{
-    pub fn to_serde_value(&self) -> String{
+    pub fn as_serde_value(&self) -> String{
         let json_value = serde_json::to_value(self).unwrap();
-        format!("{}", json_value.as_str().unwrap())
+        json_value.as_str().unwrap().to_string()
     }
 }
