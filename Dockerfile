@@ -22,12 +22,14 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY src/ src/
-COPY Cargo.toml Cargo.lock ./
-
-RUN ls -la
 # Build the application.
-RUN cargo build --locked --release && \
+RUN --mount=type=bind,source=src,target=src \
+    --mount=type=bind,source=Cargo.toml,target=Cargo.toml \
+    --mount=type=bind,source=Cargo.lock,target=Cargo.lock \
+    --mount=type=cache,target=/app/target/ \
+    --mount=type=cache,target=/usr/local/cargo/git/db \
+    --mount=type=cache,target=/usr/local/cargo/registry/ \
+cargo build --locked --release && \
 cp ./target/release/$APP_NAME /bin/app
 
 FROM debian:bookworm-slim AS final
