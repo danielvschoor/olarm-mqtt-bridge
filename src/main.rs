@@ -15,6 +15,7 @@ use crate::olarm_api::cached_olarm_client::CachedOlarmClient;
 use crate::olarm_api::models::device_profile::DeviceProfile;
 use crate::olarm_api::models::request::actions_request::{ActionCmd, MqttRequest};
 use crate::olarm_api::models::response::mqtt_device_response::MqttDeviceResponse;
+use crate::olarm_api::models::response::mqtt_wifi_response::MqttWifiResponse;
 use crate::olarm_api::models::response::user_response::UserDevice;
 use crate::olarm_api::olarm_client::{OlarmApiTrait, OlarmClient};
 use crate::processors::panel_processor::PanelProcessor;
@@ -33,7 +34,6 @@ use tokio::join;
 use tokio::sync::mpsc::Receiver;
 use tokio::sync::{RwLock, mpsc};
 use tracing_subscriber::util::SubscriberInitExt;
-use crate::olarm_api::models::response::mqtt_wifi_response::MqttWifiResponse;
 
 #[tokio::main]
 pub async fn main() -> anyhow::Result<()> {
@@ -129,7 +129,6 @@ pub async fn main() -> anyhow::Result<()> {
                     if let Event::Incoming(Packet::Publish(p)) = event {
                         let payload = String::from_utf8_lossy(&p.payload).to_string();
 
-
                         match command_topic_parser(&p.topic, &payload) {
                             None => {
                                 warn!("Failed to parse topic: {:?}", p.topic);
@@ -214,7 +213,17 @@ where
                 "Error occurred while getting device, using fallback. {:?}",
                 e
             );
-            let user_id = olarm_client.get_oauth_response().await.unwrap().user_index;
+            let user_id;
+            match olarm_client.get_oauth_response().await {
+                Ok(response) => {
+                    user_id = response.user_index;
+                }
+                Err(e) => {
+                    error!("{:?}", e);
+                    std::process::exit(1);
+                }
+            }
+
             let devices = olarm_client
                 .get_user(&user_id.to_string())
                 .await
@@ -324,16 +333,16 @@ where
                     payload_str.hash(&mut hasher);
                     let current_hash = hasher.finish();
                     // Check if the hash matches the previous payload's hash
-                    if let Some(prev_hash) = prev_message_hash && prev_hash == current_hash {
-
-                            continue; // Skip processing duplicate payload
-
+                    if let Some(prev_hash) = prev_message_hash
+                        && prev_hash == current_hash
+                    {
+                        continue; // Skip processing duplicate payload
                     }
                     prev_message_hash = Some(current_hash);
 
                     if let Ok(payload) = serde_json::from_str::<MqttDeviceResponse>(&payload_str) {
                         local_client.notify_response().await;
-                        debug!("{:?}", &payload);
+                        // debug!("{:?}", &payload);
 
                         // Process zones
                         let local_processor_state = processor_state.clone();
@@ -420,7 +429,7 @@ where
 
     // If either future returns Err, this returns Err immediately.
     tokio::try_join!(reader, ticker).map(|_: (_, _)| ())
- }
+}
 #[derive(Debug, Clone)]
 pub struct ZoneObject {
     pub name: String,
